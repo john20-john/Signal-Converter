@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تعديل توقيت الإشارات الزمنية</title>
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.20.6/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            direction: var(--dir, rtl);
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+        .glassmorphism {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .neon-glow {
+            box-shadow: 0 0 12px rgba(0, 255, 0, 0.8), 0 0 24px rgba(255, 215, 0, 0.6);
+        }
+        .neon-button {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(90deg, rgba(0, 255, 0, 0.2), rgba(255, 215, 0, 0.2));
+            border: 1px solid rgba(0, 255, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+        .neon-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.4), transparent);
+            transition: left 0.5s;
+        }
+        .neon-button:hover::before {
+            left: 100%;
+        }
+        .neon-button:hover {
+            background: linear-gradient(90deg, rgba(0, 255, 0, 0.4), rgba(255, 215, 0, 0.4));
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.8), 0 0 30px rgba(0, 255, 0, 0.6);
+            transform: translateY(-2px);
+        }
+        .dark-textarea {
+            background-color: #1f2937;
+            border: 1px solid #00FF00;
+            color: #fff;
+        }
+        .dropdown-menu {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #111827;
+            border: 1px solid #00FF00;
+            color: #fff;
+        }
+        .dropdown-menu option {
+            background-color: #111827;
+            color: #fff;
+        }
+        .dropdown-menu option:hover {
+            background-color: rgba(0, 255, 0, 0.3);
+        }
+        .pulse {
+            animation: pulse 4s infinite ease-in-out;
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #FFD700, #00FF00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .favorite-text {
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        .favorite-text:hover {
+            color: #00FF00;
+        }
+        .copy-check {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            color: #00FF00;
+            font-size: 48px;
+            animation: checkAnimation 1s ease forwards;
+        }
+        .warning-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            color: #ff0000;
+            font-size: 24px;
+            text-align: center;
+        }
+        @keyframes checkAnimation {
+            0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
+        }
+    </style>
+    <script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+            return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+            if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+                try {
+                    var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                    var firstSheetName = workbook.SheetNames[0];
+                    var worksheet = workbook.Sheets[firstSheetName];
+                    var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                    var filteredData = jsonData.filter(row => row.some(filledCell));
+                    var headerRowIndex = filteredData.findIndex((row, index) =>
+                        row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                    );
+                    if (headerRowIndex === -1 || headerRowIndex > 25) {
+                        headerRowIndex = 0;
+                    }
+                    var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex));
+                    csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                    return csv;
+                } catch (e) {
+                    console.error(e);
+                    return "";
+                }
+            }
+            return gk_fileData[filename] || "";
+        }
+    </script>
+    <script>
+        document.addEventListener("contextmenu", event => event.preventDefault());
+        document.addEventListener("keydown", event => {
+            if (event.ctrlKey && (event.key === "u" || event.key === "U")) {
+                event.preventDefault();
+            }
+            if (event.ctrlKey && event.shiftKey && (event.key === "I" || event.key === "C" || event.key === "J")) {
+                event.preventDefault();
+            }
+            if (event.keyCode === 123) {
+                event.preventDefault();
+            }
+        });
+        (function() {
+            function showWarning() {
+                const warningDiv = document.createElement('div');
+                warningDiv.className = 'warning-overlay';
+                warningDiv.innerHTML = 'Access to developer tools is restricted. Please use the application as intended.';
+                document.body.appendChild(warningDiv);
+                setTimeout(() => {
+                    warningDiv.remove();
+                }, 3000);
+            }
+            function detectDevTools() {
+                const start = performance.now();
+                debugger;
+                const end = performance.now();
+                const timingDifference = end - start;
+                if (timingDifference > 500) {
+                    console.log("DevTools detected: Timing difference = " + timingDifference + "ms");
+                    return true;
+                }
+                return false;
+            }
+            setTimeout(() => {
+                setInterval(() => {
+                    if (detectDevTools()) {
+                        showWarning();
+                    }
+                }, 1000);
+            }, 3000);
+        })();
+        setInterval(() => {
+            if (window.chrome && chrome.runtime && chrome.runtime.sendMessage) {
+                showWarning();
+            }
+        }, 3000);
+        window.addEventListener('resize', function() {
+            if (window.outerHeight - window.innerHeight > 600 || window.outerWidth - window.innerWidth > 600) {
+                showWarning();
+            }
+        });
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const translations = {
+            ar: {
+                title: "تعديل توقيت الإشارات الزمنية",
+                inputLabel: "أدخل الإشارات الزمنية",
+                inputPlaceholder: "أدخل الإشارات (مثال: الإشارة تبدأ 14:30)",
+                fromTimezone: "من توقيت",
+                toTimezone: "إلى توقيت",
+                convert: "تحويل",
+                copy: "نسخ",
+                result: "النتيجة",
+                resultPlaceholder: "النتيجة ستظهر هنا...",
+                errorEmpty: "يرجى إدخال نص يحتوي على توقيتات",
+                errorInvalid: "التوقيتات غير صالحة (مثال: 14:30)",
+                language: "En",
+                addFavorite: "إضافة للمفضلة",
+                removeFavorite: "إزالة من المفضلة",
+                favorites: "المفضلة"
+            },
+            en: {
+                title: "Signal Converter",
+                inputLabel: "Enter Signals",
+                inputPlaceholder: "Enter signals (e.g., Signal starts at 14:30)",
+                fromTimezone: "From Timezone",
+                toTimezone: "To Timezone",
+                convert: "Convert",
+                copy: "Copy",
+                result: "Result",
+                resultPlaceholder: "Result will appear here...",
+                errorEmpty: "Please enter text with times",
+                errorInvalid: "Invalid times found (e.g., 14:30)",
+                language: "Ar",
+                addFavorite: "Add to Favorites",
+                removeFavorite: "Remove from Favorites",
+                favorites: "Favorites"
+            }
+        };
+
+        const timezones = [];
+        for (let i = -40; i <= 55; i++) {
+            let offset = i * 15;
+            let hours = Math.floor(offset / 60);
+            let minutes = Math.abs(offset % 60);
+            let label = `UTC${hours >= 0 ? '+' : ''}${hours}:${String(minutes).padStart(2, '0')}`;
+            timezones.push({ offset, label });
+        }
+
+        const convertTime = (time, fromOffset, toOffset) => {
+            const timeDiff = (toOffset - fromOffset) / 60;
+            let [hours, minutes] = time.split(":").map(Number);
+            hours = (hours + timeDiff + 24) % 24;
+            return `${String(Math.floor(hours)).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        };
+
+        const App = () => {
+            const [language, setLanguage] = useState(localStorage.getItem('language') || 'ar');
+            const [inputText, setInputText] = useState('');
+            const [outputText, setOutputText] = useState('');
+            const [fromTimezone, setFromTimezone] = useState('UTC+2:00');
+            const [toTimezone, setToTimezone] = useState('UTC+0:00');
+            const [favoriteTimezones, setFavoriteTimezones] = useState(JSON.parse(localStorage.getItem('favoriteTimezones')) || []);
+            const [error, setError] = useState('');
+            const [showCheck, setShowCheck] = useState(false);
+            const t = translations[language];
+
+            useEffect(() => {
+                document.documentElement.style.setProperty('--dir', language === 'ar' ? 'rtl' : 'ltr');
+                localStorage.setItem('language', language);
+            }, [language]);
+
+            useEffect(() => {
+                localStorage.setItem('favoriteTimezones', JSON.stringify(favoriteTimezones));
+            }, [favoriteTimezones]);
+
+            const toggleFavoriteTimezone = (timezone) => {
+                if (favoriteTimezones.includes(timezone)) {
+                    setFavoriteTimezones(favoriteTimezones.filter(fav => fav !== timezone));
+                } else {
+                    setFavoriteTimezones([...favoriteTimezones, timezone]);
+                }
+            };
+
+            const handleConvert = () => {
+                if (!inputText.trim()) {
+                    setError(t.errorEmpty);
+                    setOutputText('');
+                    return;
+                }
+
+                const regex = /\b\d{2}:\d{2}\b/g;
+                const times = inputText.match(regex);
+                if (!times) {
+                    setError(t.errorInvalid);
+                    setOutputText('');
+                    return;
+                }
+
+                const fromOffset = timezones.find(tz => tz.label === fromTimezone)?.offset || 0;
+                const toOffset = timezones.find(tz => tz.label === toTimezone)?.offset || 0;
+
+                const convertedText = inputText.replace(regex, (time) => {
+                    if (!/^\d{2}:\d{2}$/.test(time) || parseInt(time.split(':')[0]) > 23 || parseInt(time.split(':')[1]) > 59) {
+                        return time;
+                    }
+                    return convertTime(time, fromOffset, toOffset);
+                });
+
+                setOutputText(convertedText);
+                setError('');
+            };
+
+            const handleCopy = () => {
+                if (outputText) {
+                    navigator.clipboard.writeText(outputText).then(() => {
+                        setShowCheck(true);
+                        setTimeout(() => setShowCheck(false), 1000);
+                    });
+                }
+            };
+
+            return (
+                <div className="max-w-3xl w-full mx-auto p-6 glassmorphism rounded-xl neon-glow transform transition-all duration-300">
+                    <div className="flex justify-between items-center mb-2">
+                        <h1 className="text-xl md:text-2xl font-bold gradient-text pulse font-orbitron leading-tight">
+                            {t.title}
+                        </h1>
+                        <button
+                            onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+                            className="px-3 py-1 text-sm text-white rounded-md neon-button"
+                        >
+                            {t.language}
+                        </button>
+                    </div>
+
+                    <div className="mb-4">
+                        <label htmlFor="inputText" className="block text-sm font-medium text-green-300 mb-1">
+                            {t.inputLabel}
+                        </label>
+                        <textarea
+                            id="inputText"
+                            value={inputText}
+                            onChange={(e) => setInputText(e.target.value)}
+                            placeholder={t.inputPlaceholder}
+                            className="w-full h-28 p-3 rounded-lg dark-textarea focus:ring-2 focus:ring-green-400 transition"
+                            aria-describedby="inputError"
+                        />
+                        {error && (
+                            <p id="inputError" className="text-red-400 text-sm mt-1">
+                                {error}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 mb-4">
+                        <div className="flex-1">
+                            <label htmlFor="fromTimezone" className="block text-sm font-medium text-green-300 mb-1">
+                                {t.fromTimezone}
+                            </label>
+                            <select
+                                id="fromTimezone"
+                                value={fromTimezone}
+                                onChange={(e) => setFromTimezone(e.target.value)}
+                                className="w-full p-2 rounded-lg dark-textarea focus:ring-2 focus:ring-green-400 dropdown-menu transition"
+                            >
+                                {favoriteTimezones.length > 0 && (
+                                    <>
+                                        <option disabled>{t.favorites}</option>
+                                        {timezones
+                                            .filter(tz => favoriteTimezones.includes(tz.label))
+                                            .map(({ label }) => (
+                                                <option key={label} value={label}>
+                                                    {label}
+                                                </option>
+                                            ))}
+                                        <option disabled>──────────</option>
+                                    </>
+                                )}
+                                {timezones.map(({ label }) => (
+                                    <option key={label} value={label}>
+                                        {label}
+                                    </option>
+                                ))}
+                            </select>
+                            <span
+                                onClick={() => toggleFavoriteTimezone(fromTimezone)}
+                                className="mt-1 text-sm text-green-300 favorite-text inline-block"
+                            >
+                                {favoriteTimezones.includes(fromTimezone) ? t.removeFavorite : t.addFavorite}
+                            </span>
+                        </div>
+                        <div className="flex-1">
+                            <label htmlFor="toTimezone" className="block text-sm font-medium text-green-300 mb-1">
+                                {t.toTimezone}
+                            </label>
+                            <select
+                                id="toTimezone"
+                                value={toTimezone}
+                                onChange={(e) => setToTimezone(e.target.value)}
+                                className="w-full p-2 rounded-lg dark-textarea focus:ring-2 focus:ring-green-400 dropdown-menu transition"
+                            >
+                                {favoriteTimezones.length > 0 && (
+                                    <>
+                                        <option disabled>{t.favorites}</option>
+                                        {timezones
+                                            .filter(tz => favoriteTimezones.includes(tz.label))
+                                            .map(({ label }) => (
+                                                <option key={label} value={label}>
+                                                    {label}
+                                                </option>
+                                            ))}
+                                        <option disabled>──────────</option>
+                                    </>
+                                )}
+                                {timezones.map(({ label }) => (
+                                    <option key={label} value={label}>
+                                        {label}
+                                    </option>
+                                ))}
+                            </select>
+                            <span
+                                onClick={() => toggleFavoriteTimezone(toTimezone)}
+                                className="mt-1 text-sm text-green-300 favorite-text inline-block"
+                            >
+                                {favoriteTimezones.includes(toTimezone) ? t.removeFavorite : t.addFavorite}
+                            </span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handleConvert}
+                        className="w-full py-2 text-white rounded-lg neon-button transition transform flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        {t.convert}
+                    </button>
+
+                    <div className="mt-4">
+                        <div className="flex justify-between items-center mb-1">
+                            <h2 className="text-lg font-semibold text-green-300">
+                                {t.result}
+                            </h2>
+                            <button
+                                onClick={handleCopy}
+                                className="px-3 py-1 text-sm text-white rounded-md neon-button flex items-center gap-1"
+                                disabled={!outputText}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                </svg>
+                                {t.copy}
+                            </button>
+                        </div>
+                        <div className="relative">
+                            <textarea
+                                id="outputText"
+                                value={outputText}
+                                readOnly
+                                placeholder={t.resultPlaceholder}
+                                className="w-full h-28 p-3 rounded-lg dark-textarea focus:ring-2 focus:ring-green-400 transition"
+                            />
+                            {showCheck && <div className="copy-check">✓</div>}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
